@@ -4,14 +4,47 @@ My own agent setup, built from zero. Source of truth for identity, skills, hooks
 and agent rules. Deliberately not tied to one harness: Claude Code is the first
 target, but nothing in here should assume `~/.claude`.
 
-## Layout (planned, grows as needed)
+## Layers
+
+Three layers, each in its own repo so a machine only ever has the code it is
+allowed to have. Layers are additive; nothing in a lower layer may depend on a
+higher one.
+
+| Layer      | Repo                                  | Machines        | Contents |
+|------------|---------------------------------------|-----------------|----------|
+| `core`     | `werkbank` (this repo, public-safe)   | every machine   | how I want agents to behave, generic skills (planning, review, debugging, writing), safety hooks |
+| `personal` | `werkbank-personal` (private)         | personal only   | identity/goals, self-hosting stack knowledge, secondBrain access, home infra skills |
+| `work`     | work repo (employer-owned)            | work machines   | how coding agents run at work: sandboxing, permissions, approved MCPs, data rules; team skills |
+| `project`  | each project's own `.claude/` + `AGENTS.md` | wherever the repo is | project-specific skills and rules; native, travels with the repo |
+
+Boundary rule: **core never contains personal data or employer IP**, because it
+lands on the work laptop. If something is in doubt, it goes one layer up.
+
+Precedence when rules conflict: project > work > personal > core. Work policy
+beats my personal defaults on work machines; personal never runs there.
+
+### How a layer plugs into Claude Code
+
+- Each layer repo is a **plugin marketplace** with one or more plugins
+  (skills, agents, hooks, MCP servers). Hooks use `${CLAUDE_PLUGIN_ROOT}`, so they
+  work in any profile.
+- Plugins can't ship always-on instructions, so each layer also has a
+  `RULES.md`, pulled in via `@` imports from the profile's `CLAUDE.md`.
+- **chezmoi picks the layers per machine** from `.is_personal`: it renders
+  `~/.claude/settings.json` (`extraKnownMarketplaces` + `enabledPlugins`) and
+  `~/.claude/CLAUDE.md` (the `@` imports), and clones the layer repos the machine
+  should have.
+- Canonical content stays harness-neutral (SKILL.md, plain markdown, plain
+  scripts). The plugin manifests are thin Claude Code adapters around it, so a
+  layer can be pointed at Pi, opencode or Codex later.
+
+### This repo (planned, grows as needed)
 
 ```
-identity/            who I am, what I'm working toward (plain markdown)
+RULES.md             always-on core behavior (imported by CLAUDE.md)
 skills/              Agent Skills format (SKILL.md), portable across harnesses
-hooks/               plain scripts; resolve paths via $CLAUDE_CONFIG_DIR, never ~/.claude
-adapters/
-  claude-code/       settings.json + CLAUDE.md, linked into a profile dir
+hooks/               plain scripts, no hardcoded ~/.claude
+.claude-plugin/      marketplace.json + plugin manifest(s): the Claude Code adapter
 migration/           one-off scripts from the LifeOS move
 docs/                notes, inspiration, decisions
 ```
